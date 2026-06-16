@@ -174,6 +174,28 @@
   .socials a:hover { background: var(--surface); }
   .copy { color: var(--muted); font-size: .85rem; }
 
+  /* Inquiry modal */
+  .modal-overlay { position: fixed; inset: 0; z-index: 1000; padding: 20px;
+    background: rgba(8,4,16,0.72); backdrop-filter: blur(6px);
+    display: none; align-items: center; justify-content: center; opacity: 0; transition: opacity .25s ease; }
+  .modal-overlay.open { display: flex; opacity: 1; }
+  .modal { background: var(--bg-2); border: 1px solid var(--border); border-radius: 24px; width: 100%; max-width: 500px;
+    padding: 34px; max-height: 92vh; overflow-y: auto; box-shadow: 0 0 60px rgba(255,45,149,0.25);
+    transform: translateY(14px); transition: transform .25s ease; }
+  .modal-overlay.open .modal { transform: none; }
+  .modal-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+  .modal h3 { font-family: 'Anton'; font-size: 1.8rem; text-transform: uppercase; margin-bottom: 4px;
+    background: linear-gradient(90deg, var(--yellow), var(--pink)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+  .modal .msub { color: var(--muted); font-size: .94rem; margin-bottom: 20px; }
+  .modal .x { background: none; border: none; font-size: 1.7rem; line-height: 1; color: var(--muted); cursor: pointer; padding: 0 4px; transition: color .2s; }
+  .modal .x:hover { color: #fff; }
+  .modal .field input, .modal .field textarea { width: 100%; padding: 13px 15px; font-family: inherit; font-size: .96rem;
+    color: var(--text); background: rgba(255,255,255,0.05); border: 1.5px solid var(--border); border-radius: 12px; transition: border-color .2s, box-shadow .2s; }
+  .modal .field input::placeholder, .modal .field textarea::placeholder { color: #7d7398; }
+  .modal .field input:focus, .modal .field textarea:focus { outline: none; border-color: var(--pink); box-shadow: 0 0 0 3px rgba(255,45,149,0.18); }
+  .modal .field textarea { resize: vertical; min-height: 96px; }
+  .modal .btn { width: 100%; justify-content: center; margin-top: 6px; }
+
   .reveal { opacity: 0; transform: translateY(26px); transition: opacity .7s ease, transform .7s ease; }
   .reveal.in { opacity: 1; transform: none; }
 
@@ -200,6 +222,7 @@
         <li><a href="#lookfor">Who We Want</a></li>
         <li><a href="#info">Details</a></li>
         <li><a href="#apply">Apply</a></li>
+        <li><a href="#" class="open-inquiry">Contact</a></li>
       </ul>
       <a href="#apply" class="btn btn-primary" style="padding:11px 22px;font-size:.92rem">Become a Vendor</a>
     </div>
@@ -341,12 +364,66 @@
         <a href="https://instagram.com/AnalynAdventures" target="_blank" rel="noopener">📸 @AnalynAdventures</a>
         <a href="https://instagram.com/Inland.Empire_Events_" target="_blank" rel="noopener">📸 @Inland.Empire_Events_</a>
         <a href="#apply">📩 Apply as Vendor</a>
+        <a href="#" class="open-inquiry">💬 Ask a Question</a>
       </div>
       <div class="copy">© 2026 Bites &amp; Beats Night Market · Bloomington, CA · #NightMarket #FoodVendor #InlandEmpireEvents</div>
     </div>
   </footer>
 
+  <!-- General inquiry modal -->
+  <div class="modal-overlay" id="inquiryModal" role="dialog" aria-modal="true" aria-labelledby="inqTitle">
+    <div class="modal">
+      <div class="modal-head">
+        <h3 id="inqTitle">Got a Question?</h3>
+        <button class="x" data-close aria-label="Close">×</button>
+      </div>
+      <p class="msub">Not a vendor? Ask us anything about the event and we'll get right back to you.</p>
+      <form id="inquiryForm" novalidate>
+        <div class="field" style="margin-bottom:14px"><input name="name" required placeholder="Your name" autocomplete="name" /></div>
+        <div class="field" style="margin-bottom:14px"><input type="email" name="email" required placeholder="Your email" autocomplete="email" /></div>
+        <div class="field" style="margin-bottom:14px"><textarea name="message" required placeholder="Your question or message…"></textarea></div>
+        <input type="hidden" name="_subject" value="New Inquiry — Bites & Beats Night Market" />
+        <input type="hidden" name="_template" value="table" />
+        <input type="text" name="_honey" class="hp" tabindex="-1" autocomplete="off" aria-hidden="true" />
+        <button type="submit" class="btn btn-yellow" id="inqBtn">Send message →</button>
+        <div class="form-status" id="inqStatus" role="status" aria-live="polite"></div>
+      </form>
+    </div>
+  </div>
+
   <script>
+    const EMAIL_ENDPOINT = 'https://formsubmit.co/ajax/Mondragonalex201@gmail.com';
+
+    // General inquiry modal
+    const modal = document.getElementById('inquiryModal');
+    const openModal = () => { modal.classList.add('open'); document.body.style.overflow = 'hidden'; };
+    const closeModal = () => { modal.classList.remove('open'); document.body.style.overflow = ''; };
+    document.querySelectorAll('.open-inquiry').forEach(b => b.addEventListener('click', (e) => { e.preventDefault(); openModal(); }));
+    modal.addEventListener('click', (e) => { if (e.target === modal || e.target.hasAttribute('data-close')) closeModal(); });
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && modal.classList.contains('open')) closeModal(); });
+
+    const inqForm = document.getElementById('inquiryForm');
+    const inqBtn = document.getElementById('inqBtn');
+    const inqStatus = document.getElementById('inqStatus');
+    inqForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      inqStatus.className = 'form-status';
+      if (!inqForm.name.value.trim() || !inqForm.email.value.trim()) {
+        inqStatus.textContent = 'Please add your name and email.'; inqStatus.classList.add('err'); return;
+      }
+      inqBtn.disabled = true; inqBtn.textContent = 'Sending…';
+      try {
+        const data = Object.fromEntries(new FormData(inqForm).entries());
+        const res = await fetch(EMAIL_ENDPOINT, {
+          method: 'POST', headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+          body: JSON.stringify(data)
+        });
+        if (res.ok) { inqStatus.textContent = "✅ Message sent! We'll get back to you soon."; inqStatus.classList.add('ok'); inqForm.reset(); }
+        else { throw new Error('failed'); }
+      } catch (err) { inqStatus.textContent = 'Something went wrong. Please try again or DM us on Instagram.'; inqStatus.classList.add('err'); }
+      finally { inqBtn.disabled = false; inqBtn.textContent = 'Send message →'; }
+    });
+
     const form = document.getElementById('vendorForm');
     const btn = document.getElementById('submitBtn');
     const status = document.getElementById('formStatus');
